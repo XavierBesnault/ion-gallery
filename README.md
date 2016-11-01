@@ -61,8 +61,6 @@ Default values in example.
 app.config(function(ionGalleryConfigProvider) {
   ionGalleryConfigProvider.setGalleryConfig({
                           action_label: 'Close',
-                          template_gallery: 'gallery.html',
-                          template_slider: 'slider.html',
                           toggle: false,
                           row_size: 3,
                           fixed_row_size: true
@@ -73,12 +71,9 @@ app.config(function(ionGalleryConfigProvider) {
 ```
 Default values
 action_label - 'Close' (String)
-template_gallery - 'gallery.html' (String)
-template_slider - 'slider.html' (String)
 toggle - false (Boolean)
 row_size - 3 (Int)
 fixed_row_size - true (boolean). If true, thumbnails in gallery will always be sized as if there are "row_size" number of images in a row (even if there aren't). If set to false, the row_size will be dynamic until it reaches the set row_size (Ex: if only 1 image it will be rendered in the entire row, if 2 images, both will be rendered in the entire row)
-zoom_events - true (Boolean)
 ```
 
 - Via markup:
@@ -93,10 +88,6 @@ Markup overrides provider definitions
 
           <ion-gallery ion-gallery-items="items" ion-gallery-toggle="false"></ion-gallery>
 
-- ion-item-action: Overrides the default action when a gallery item is tapped. Default: opens the slider modal
+- ion-item-callback: Overrides the default action with a custom callback when an item is tapped. Default: opens the slider modal
 
-          <ion-gallery ion-gallery-items="items" ion-item-action="itemAction(item)"></ion-gallery>
-
-- ion-zoom-events: Enable/Disable all zoom events in slider (pinchToZoom, tap and double tap). Default: true
-
-          <ion-gallery ion-gallery-items="items" ion-zoom-events="true"></ion-gallery>
+          <ion-gallery ion-gallery-items="items" ion-item-callback="callback(item)"></ion-gallery>

@@ -2,7 +2,7 @@
   'use strict';
 
   angular
-    .module('ion-gallery', ['templates'])
+    .module('ion-gallery', [])
     .directive('ionGallery', ionGallery);
 
   ionGallery.$inject = ['$ionicPlatform', 'ionGalleryHelper', 'ionGalleryConfig'];
@@ -14,13 +14,12 @@
       scope: {
         ionGalleryItems: '=ionGalleryItems',
         ionGalleryRowSize: '=?ionGalleryRow',
-        ionItemAction: '&?ionItemAction',
-        ionZoomEvents: '=?ionZoomEvents'
+        ionItemCallback: '&?ionItemCallback'
       },
       controller: controller,
       link: link,
       replace: true,
-      templateUrl: ionGalleryConfig.template_gallery
+      templateUrl: 'gallery.html'
     };
 
     function controller($scope) {
@@ -48,7 +47,9 @@
     }
 
     function link(scope, element, attrs) {
-      scope.customItemAction = angular.isFunction(scope.ionItemAction) && attrs.hasOwnProperty('ionItemAction');
+
+      scope.customCallback = angular.isFunction(scope.ionItemCallback) && attrs.hasOwnProperty('ionItemCallback')
+
       scope.ionSliderToggle = attrs.ionGalleryToggle === 'false' ? false : ionGalleryConfig.toggle;
     }
   }
@@ -66,12 +67,9 @@
   function ionGalleryConfig(){
     this.config = {
       action_label: 'Done',
-      template_gallery: 'gallery.html',
-      template_slider:  'slider.html',
       toggle: true,
       row_size: 3,
-      fixed_row_size: true,
-      zoom_events: true
+      fixed_row_size: true
     };
 
     this.$get = function() {
@@ -84,7 +82,6 @@
   }
 
 })();
-
 (function(){
   'use strict';
 
@@ -126,6 +123,14 @@
           col = 0;
         }
 
+        if(!items[i].hasOwnProperty('sub')){
+          items[i].sub = '';
+        }
+
+        if(!items[i].hasOwnProperty('thumb')){
+          items[i].thumb = items[i].src;
+        }
+
         items[i].position = i;
 
         _gallery[row][col] = items[i];
@@ -134,51 +139,6 @@
 
       return _gallery;
     };
-  }
-})();
-
-(function(){
-  'use strict';
-
-  angular
-    .module('ion-gallery')
-    .directive('ionImageScale',ionImageScale);
-
-  ionImageScale.$inject = [];
-
-  function ionImageScale(){
-    
-    return {
-      restrict: 'A',
-      link : link
-    };
-
-    function link(scope, element, attrs) {
-      
-      var scaleImage = function(context,value) {
-        if(value>0){
-          if(context.naturalHeight >= context.naturalWidth){
-            element.attr('width','100%');
-          }
-          else{
-            element.attr('height',element.parent()[0].offsetHeight+'px');
-          }
-        } 
-      };
-      
-      element.bind("load" , function(e){
-        var _this = this;
-        if(element.parent()[0].offsetHeight > 0){
-          scaleImage(this,element.parent()[0].offsetHeight);
-        }
-        
-        scope.$watch(function(){
-          return element.parent()[0].offsetHeight;
-        },function(newValue){
-          scaleImage(_this,newValue);
-        });
-      });
-    }
   }
 })();
 (function(){
@@ -220,23 +180,24 @@
   ionSlideAction.$inject = ['$ionicGesture','$timeout'];
 
   function ionSlideAction($ionicGesture, $timeout){
-
+    
     return {
       restrict: 'A',
       link : link
     };
 
     function link(scope, element, attrs) {
+      
       var isDoubleTapAction = false;
-
+      
       var pinchZoom = function pinchZoom(){
           scope.$emit('ZoomStarted');
       };
-
+      
       var imageDoubleTapGesture = function imageDoubleTapGesture(event) {
-
+        
         isDoubleTapAction = true;
-
+        
         $timeout(function(){
           isDoubleTapAction = false;
           scope.$emit('DoubleTapEvent',{ 'x': event.gesture.touches[0].pageX, 'y': event.gesture.touches[0].pageY});
@@ -244,7 +205,7 @@
       };
 
       var imageTapGesture = function imageTapGesture(event) {
-
+        
         if(isDoubleTapAction === true){
           return;
         }
@@ -259,11 +220,11 @@
           },200);
         }
       };
-
+      
       var pinchEvent = $ionicGesture.on('pinch',pinchZoom,element);
       var doubleTapEvent = $ionicGesture.on('doubletap', function(e){imageDoubleTapGesture(e);}, element);
       var tapEvent = $ionicGesture.on('tap', imageTapGesture, element);
-
+      
       scope.$on('$destroy', function() {
         $ionicGesture.off(doubleTapEvent, 'doubletap', imageDoubleTapGesture);
         $ionicGesture.off(tapEvent, 'tap', imageTapGesture);
@@ -272,7 +233,6 @@
     }
   }
 })();
-
 (function(){
   'use strict';
 
@@ -280,9 +240,10 @@
     .module('ion-gallery')
     .directive('ionSlider',ionSlider);
 
-  ionSlider.$inject = ['$ionicModal','$timeout','$ionicScrollDelegate','ionSliderHelper','ionGalleryConfig'];
+  ionSlider.$inject = ['$ionicModal','ionGalleryHelper','$ionicPlatform','$timeout','$ionicScrollDelegate',
+                       '$ionicSlideBoxDelegate'];
 
-  function ionSlider($ionicModal,$timeout,$ionicScrollDelegate,ionSliderHelper,ionGalleryConfig){
+  function ionSlider($ionicModal,ionGalleryHelper,$ionicPlatform,$timeout,$ionicScrollDelegate,$ionicSlideBoxDelegate){
 
     controller.$inject = ["$scope"];
     return {
@@ -298,11 +259,20 @@
       var rowSize = $scope.ionGalleryRowSize;
       var zoomStart = false;
 
-      $scope.selectedSlide = 1;
-      $scope.hideAll = false;
-      $scope.ionZoomEvents = ionSliderHelper.setZoomEvents($scope.ionZoomEvents)
+      $scope.selectedSlide = 0;
 
-      $scope.openSlider = function(index) {
+
+      $scope.updateSlideStatus = function(slide) {
+        var zoomFactor = $ionicScrollDelegate.$getByHandle('slide-' + slide).getScrollPosition().zoom;
+
+        if (zoomFactor == 1) {
+          $ionicSlideBoxDelegate.enableSlide(true);
+        } else {
+          $ionicSlideBoxDelegate.enableSlide(false);
+        }
+      };
+
+      $scope.showImage = function(index) {
         $scope.slides = [];
         currentImage = index;
 
@@ -310,66 +280,24 @@
         var previndex = index - 1 < 0 ? galleryLength - 1 : index - 1;
         var nextindex = index + 1 >= galleryLength ? 0 : index + 1;
 
-        $scope.slides[0] = $scope.ionGalleryItems[previndex];
-        $scope.slides[1] = $scope.ionGalleryItems[index];
-        $scope.slides[2] = $scope.ionGalleryItems[nextindex];
+        console.log('index:', index);
+        console.log('galleryLength: ', galleryLength);
 
-        lastSlideIndex = 1;
-        $scope.openModal();
+
+        $scope.slides = $scope.ionGalleryItems;
+        lastSlideIndex = index;
+        $scope.selectedSlide = lastSlideIndex;
+
+        $scope.loadModal();
       };
 
       $scope.slideChanged = function(currentSlideIndex) {
-
-        if(currentSlideIndex === lastSlideIndex){
-          return;
-        }
-
-        var slideToLoad = $scope.slides.length - lastSlideIndex - currentSlideIndex;
-        var galleryLength = $scope.ionGalleryItems.length;
-        var imageToLoad;
-        var slidePosition = lastSlideIndex + '>' + currentSlideIndex;
-
-        if(slidePosition === '0>1' || slidePosition === '1>2' || slidePosition === '2>0'){
-          currentImage++;
-
-          if(currentImage >= galleryLength){
-            currentImage = 0;
-          }
-
-          imageToLoad = currentImage + 1;
-
-          if( imageToLoad >= galleryLength){
-            imageToLoad = 0;
-          }
-        }
-        else if(slidePosition === '0>2' || slidePosition === '1>0' || slidePosition === '2>1'){
-          currentImage--;
-
-          if(currentImage < 0){
-            currentImage = galleryLength - 1 ;
-          }
-
-          imageToLoad = currentImage - 1;
-
-          if(imageToLoad < 0){
-            imageToLoad = galleryLength - 1;
-          }
-        }
-
-        if($scope.ionZoomEvents === true){
-          //Clear zoom
-          $ionicScrollDelegate.$getByHandle('slide-' + slideToLoad).zoomTo(1);
-        }
-
-        $scope.slides[slideToLoad] = $scope.ionGalleryItems[imageToLoad];
-
         lastSlideIndex = currentSlideIndex;
       };
 
       $scope.$on('ZoomStarted', function(e){
         $timeout(function () {
           zoomStart = true;
-          $scope.hideAll = true;
         });
 
       });
@@ -389,55 +317,40 @@
       });
 
       var _onTap = function _onTap(){
-        if(zoomStart === true){
-          if($scope.ionZoomEvents === true){
-            $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(1,true);
-          }
-
-          $timeout(function () {
-            _isOriginalSize();
-          },300);
-
-          return;
-        }
-
-        if(($scope.hasOwnProperty('ionSliderToggle') && $scope.ionSliderToggle === false && $scope.hideAll === false) || zoomStart === true){
-          return;
-        }
-
-        $scope.hideAll = !$scope.hideAll;
+        $scope.closeModal();
       };
 
       var _onDoubleTap = function _onDoubleTap(position){
         if(zoomStart === false){
-          if($scope.ionZoomEvents === true){
-            $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(3,true,position.x,position.y);
-          }
-
+          $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(3,true,position.x,position.y);
           zoomStart = true;
-          $scope.hideAll = true;
         }
         else{
-          _onTap();
+          $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(1,true);
+
+          $timeout(function () {
+            _isOriginalSize();
+          },300);
         }
       };
 
       function _isOriginalSize(){
         zoomStart = false;
-        _onTap();
       }
-
     }
 
     function link(scope, element, attrs) {
       var _modal;
 
-      $ionicModal.fromTemplateUrl(ionGalleryConfig.template_slider, {
-        scope: scope,
-        animation: 'fade-in'
-      }).then(function(modal){
-        _modal = modal;
-      });
+      scope.loadModal = function(){
+        $ionicModal.fromTemplateUrl('slider.html', {
+          scope: scope,
+          animation: 'fade-in'
+        }).then(function(modal) {
+          _modal = modal;
+          scope.openModal();
+        });
+      };
 
       scope.openModal = function() {
         _modal.show();
@@ -457,28 +370,3 @@
     }
   }
 })();
-
-(function(){
-  'use strict';
-
-  angular
-    .module('ion-gallery')
-    .service('ionSliderHelper',ionSliderHelper);
-
-  ionSliderHelper.$inject = ['ionGalleryConfig'];
-
-  function ionSliderHelper(ionGalleryConfig) {
-
-    this.setZoomEvents = function setZoomEvents(zoomEvents){
-      if (zoomEvents === false){
-        ionGalleryConfig.zoom_events = false;
-      }
-
-      return ionGalleryConfig.zoom_events;
-    }
-
-  }
-})();
-
-angular.module("templates", []).run(["$templateCache", function($templateCache) {$templateCache.put("gallery.html","<div class=\"gallery-view\">\n  <div class=\"row\" ng-repeat=\"item in items track by $index\" ion-row-height>\n    <div ng-repeat=\"photo in item track by $index\"\n         class=\"col col-{{responsiveGrid}} image-container\">\n\n      <img ion-image-scale\n           ng-src=\"{{photo.thumb || photo.src}}\"\n           ng-click=\"customItemAction ? ionItemAction({item: photo}) : openSlider(photo.position)\">\n\n    </div>\n  </div>\n  <div ion-slider></div>\n</div>\n");
-$templateCache.put("slider.html","<ion-modal-view class=\"imageView\">\n  <ion-header-bar class=\"headerView\" ng-show=\"!hideAll\">\n    <button class=\"button button-outline button-light close-btn\" ng-click=\"closeModal()\">{{::actionLabel}}</button>\n  </ion-header-bar>\n\n  <ion-content class=\"has-no-header\" scroll=\"false\">\n    <ion-slide-box does-continue=\"true\" active-slide=\"selectedSlide\" show-pager=\"false\" class=\"listContainer\" on-slide-changed=\"slideChanged($index)\">\n      <ion-slide ng-repeat=\"single in slides track by $index\">\n        <ion-scroll direction=\"xy\"\n                    locking=\"false\"\n                    zooming=\"{{ionZoomEvents}}\"\n                    min-zoom=\"1\"\n                    scrollbar-x=\"false\"\n                    scrollbar-y=\"false\"\n                    ion-slide-action\n                    delegate-handle=\"slide-{{$index}}\"\n                    overflow-scroll=\"false\"\n                    >\n        <div class=\"item item-image gallery-slide-view\">\n          <img ng-src=\"{{single.src}}\">\n        </div>\n        <div ng-if=\"single.sub && single.sub.length > 0\" class=\"image-subtitle\" ng-show=\"!hideAll\">\n            <span ng-bind-html=\'single.sub\'></span>\n        </div>\n        </ion-scroll>\n      </ion-slide>\n    </ion-slide-box>\n  </ion-content>\n</ion-modal-view>\n");}]);
