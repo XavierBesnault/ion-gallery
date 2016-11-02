@@ -19,11 +19,9 @@
                     ion-slide-action
                     delegate-handle="slide-{{$index}}"
                     overflow-scroll="false"
-                    on-scroll="updateSlideStatus(selectedSlide)"
-                    on-release="updateSlideStatus(selectedSlide)"
                     >
         <div class="item item-image gallery-slide-view">
-          <img ng-src="{{single.src}}">
+          <img ng-src="{{single.src}}" style="width:100%">
         </div>
         </ion-scroll>
       </ion-slide>

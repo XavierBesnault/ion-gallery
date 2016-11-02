@@ -151,14 +151,14 @@
   ionRowHeight.$inject = ['ionGalleryConfig'];
 
   function ionRowHeight(ionGalleryConfig){
-    
+
     return {
       restrict: 'A',
       link : link
     };
 
     function link(scope, element, attrs) {
-      scope.$watch( 
+      scope.$watch(
         function(){
           return scope.ionGalleryRowSize;
         },
@@ -180,24 +180,24 @@
   ionSlideAction.$inject = ['$ionicGesture','$timeout'];
 
   function ionSlideAction($ionicGesture, $timeout){
-    
+
     return {
       restrict: 'A',
       link : link
     };
 
     function link(scope, element, attrs) {
-      
+
       var isDoubleTapAction = false;
-      
+
       var pinchZoom = function pinchZoom(){
           scope.$emit('ZoomStarted');
       };
-      
+
       var imageDoubleTapGesture = function imageDoubleTapGesture(event) {
-        
+
         isDoubleTapAction = true;
-        
+
         $timeout(function(){
           isDoubleTapAction = false;
           scope.$emit('DoubleTapEvent',{ 'x': event.gesture.touches[0].pageX, 'y': event.gesture.touches[0].pageY});
@@ -205,7 +205,7 @@
       };
 
       var imageTapGesture = function imageTapGesture(event) {
-        
+
         if(isDoubleTapAction === true){
           return;
         }
@@ -220,15 +220,31 @@
           },200);
         }
       };
-      
+
+      var swipeDragLeft = function swipeDragLeft(event) {
+          scope.$emit('SwipeDragLeftEvent');
+      }
+
+      var swipeDragRight = function swipeDragRight(event) {
+          scope.$emit('SwipeDragRightEvent');
+      }
+
       var pinchEvent = $ionicGesture.on('pinch',pinchZoom,element);
       var doubleTapEvent = $ionicGesture.on('doubletap', function(e){imageDoubleTapGesture(e);}, element);
       var tapEvent = $ionicGesture.on('tap', imageTapGesture, element);
-      
+      // var swipeLeftEvent = $ionicGesture.on('swipeleft', swipeDragLeft, element);
+      // var swipeRightEvent = $ionicGesture.on('swiperight', swipeDragRight, element);
+      var dragLeftEvent = $ionicGesture.on('dragleft', swipeDragLeft, element);
+      var dragRightEvent = $ionicGesture.on('dragright', swipeDragRight, element);
+
       scope.$on('$destroy', function() {
         $ionicGesture.off(doubleTapEvent, 'doubletap', imageDoubleTapGesture);
         $ionicGesture.off(tapEvent, 'tap', imageTapGesture);
         $ionicGesture.off(pinchEvent, 'pinch', pinchZoom);
+        // $ionicGesture.off(swipeLeftEvent, 'swipeleft', swipeDragLeft);
+        // $ionicGesture.off(swipeRightEvent, 'swiperight', swipeDragRight);
+        $ionicGesture.off(dragLeftEvent, 'dragleft', swipeDragLeft);
+        $ionicGesture.off(dragRightEvent, 'dragright', swipeDragRight);
       });
     }
   }
@@ -253,68 +269,52 @@
     };
 
     function controller($scope){
-      var lastSlideIndex;
-      var currentImage;
-
-      var rowSize = $scope.ionGalleryRowSize;
       var zoomStart = false;
 
-      $scope.selectedSlide = 0;
-
-
-      $scope.updateSlideStatus = function(slide) {
-        var zoomFactor = $ionicScrollDelegate.$getByHandle('slide-' + slide).getScrollPosition().zoom;
-
-        if (zoomFactor == 1) {
-          $ionicSlideBoxDelegate.enableSlide(true);
-        } else {
-          $ionicSlideBoxDelegate.enableSlide(false);
-        }
+      $scope.slideChanged = function(index) {
+        $scope.selectedSlide = index;
+        $ionicScrollDelegate.$getByHandle('slide-' + $scope.previousSlide).zoomTo(1, true);
       };
 
       $scope.showImage = function(index) {
         $scope.slides = [];
-        currentImage = index;
-
-        var galleryLength = $scope.ionGalleryItems.length;
-        var previndex = index - 1 < 0 ? galleryLength - 1 : index - 1;
-        var nextindex = index + 1 >= galleryLength ? 0 : index + 1;
-
-        console.log('index:', index);
-        console.log('galleryLength: ', galleryLength);
-
 
         $scope.slides = $scope.ionGalleryItems;
-        lastSlideIndex = index;
-        $scope.selectedSlide = lastSlideIndex;
+        $scope.selectedSlide = index;
 
         $scope.loadModal();
-      };
-
-      $scope.slideChanged = function(currentSlideIndex) {
-        lastSlideIndex = currentSlideIndex;
       };
 
       $scope.$on('ZoomStarted', function(e){
         $timeout(function () {
           zoomStart = true;
         });
-
       });
 
       $scope.$on('TapEvent', function(e){
         $timeout(function () {
           _onTap();
         });
-
       });
 
       $scope.$on('DoubleTapEvent', function(event,position){
         $timeout(function () {
           _onDoubleTap(position);
         });
-
       });
+
+      $scope.$on('SwipeDragLeftEvent', function(event){
+        $timeout(function () {
+          _onSwipeDragLeftEvent(event);
+        });
+      });
+
+      $scope.$on('SwipeDragRightEvent', function(event){
+        $timeout(function () {
+          _onSwipeDragRightEvent(event);
+        });
+      });
+
 
       var _onTap = function _onTap(){
         $scope.closeModal();
@@ -322,15 +322,46 @@
 
       var _onDoubleTap = function _onDoubleTap(position){
         if(zoomStart === false){
-          $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(3,true,position.x,position.y);
+          $ionicScrollDelegate.$getByHandle('slide-' + $scope.selectedSlide).zoomTo(3, true, position.x, position.y);
           zoomStart = true;
         }
         else{
-          $ionicScrollDelegate.$getByHandle('slide-'+lastSlideIndex).zoomTo(1,true);
+          $ionicScrollDelegate.$getByHandle('slide-' + $scope.selectedSlide).zoomTo(1, true);
 
           $timeout(function () {
             _isOriginalSize();
           },300);
+        }
+      };
+
+      var _onSwipeDragLeftEvent = function _onSwipeDragLeftEvent(event) {
+        var scrollLeft = $ionicScrollDelegate.$getByHandle('slide-' + $scope.selectedSlide).getScrollPosition().left,
+            scrollView = $ionicScrollDelegate.$getByHandle('slide-' + $scope.selectedSlide).getScrollView();
+        $scope.previousSlide = $scope.selectedSlide;
+
+        if (scrollLeft === scrollView.__maxScrollLeft) {
+            $timeout(function() {
+              $ionicSlideBoxDelegate.enableSlide(true);
+            });
+        } else {
+           $timeout(function() {
+              $ionicSlideBoxDelegate.enableSlide(false);
+            });
+        }
+      };
+
+      var _onSwipeDragRightEvent = function _onSwipeDragRightEvent(event) {
+        var scrollLeft = $ionicScrollDelegate.$getByHandle('slide-' + $scope.selectedSlide).getScrollPosition().left;
+        $scope.previousSlide = $scope.selectedSlide;
+
+        if (scrollLeft === 0) {
+            $timeout(function() {
+              $ionicSlideBoxDelegate.enableSlide(true);
+            });
+        } else {
+            $timeout(function() {
+              $ionicSlideBoxDelegate.enableSlide(false);
+            });
         }
       };
 
